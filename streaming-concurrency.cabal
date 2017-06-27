@@ -17,6 +17,7 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.9 && <4.10
+                     , exceptions
                      , stm
                      , streaming
   hs-source-dirs:      src
