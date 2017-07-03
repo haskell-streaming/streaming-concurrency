@@ -12,6 +12,10 @@ build-type:          Simple
 extra-source-files:  ChangeLog.md, README.md
 cabal-version:       >=1.10
 
+source-repository head
+  type:     git
+  location: https://github.com/ivan-m/streaming-concurrency.git
+
 library
   exposed-modules:     Streaming.Concurrent
                      , Streaming.Concurrent.Lifted
