@@ -19,14 +19,12 @@ source-repository head
 library
   exposed-modules:     Streaming.Concurrent
                      , Streaming.Concurrent.Lifted
-  -- other-modules:
-  -- other-extensions:
   build-depends:       base >=4.9 && <4.10
-                     , exceptions
-                     , lifted-async
-                     , monad-control
-                     , stm
-                     , streaming
+                     , exceptions >= 0.6 && < 0.9
+                     , lifted-async >= 0.9.1 && < 0.10
+                     , monad-control == 1.*
+                     , stm >= 2.4 && < 3
+                     , streaming >= 0.1.4.0 && < 0.2
                      , streaming-with == 0.1.*
                      , transformers-base
   hs-source-dirs:      src
