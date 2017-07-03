@@ -61,7 +61,7 @@ mergeStreams :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n, Foldable t)
                 -> (Stream (Of a) n () -> m r) -> m r
 mergeStreams buff strs f = withBuffer buff
                                       (forConcurrently_ strs . flip writeStreamBasket)
-                                      (f . readStreamBasket)
+                                      (`readStreamBasket` f)
 
 -- | Write a single stream to a buffer.
 --
@@ -78,8 +78,10 @@ writeStreamBasket stream (InBasket send) = go stream
                     when continue (go str')
 
 -- | Read the output of a buffer into a stream.
-readStreamBasket :: (MonadBase IO m) => OutBasket a -> Stream (Of a) m ()
-readStreamBasket (OutBasket receive) = S.untilRight getNext
+readStreamBasket :: (MonadBase IO m) => OutBasket a
+                    -> (Stream (Of a) m () -> r)
+                    -> r
+readStreamBasket (OutBasket receive) f = f (S.untilRight getNext)
   where
     getNext = maybe (Right ()) Left <$> liftBase (STM.atomically receive)
 
