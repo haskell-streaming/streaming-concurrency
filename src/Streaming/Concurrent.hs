@@ -53,9 +53,12 @@ import           Control.Monad.Trans.Control     (MonadBaseControl)
 -- | Concurrently merge multiple streams together.
 --
 --   The resulting order is unspecified.
-mergeStreams :: (MonadMask m, MonadBaseControl IO m)
-                => Buffer a -> [Stream (Of a) m v]
-                -> (Stream (Of a) m () -> m r) -> m r
+--
+--   Note that the monad of the resultant Stream can be different from
+--   the final result.
+mergeStreams :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n, Foldable t)
+                => Buffer a -> t (Stream (Of a) m v)
+                -> (Stream (Of a) n () -> m r) -> m r
 mergeStreams buff strs f = withBuffer buff
                                       (forConcurrently_ strs . flip writeStreamBasket)
                                       (f . readStreamBasket)
