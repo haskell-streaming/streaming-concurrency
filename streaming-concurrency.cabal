@@ -1,7 +1,11 @@
 name:                streaming-concurrency
 version:             0.1.0.0
 synopsis:            Concurrency support for the streaming ecosystem
--- description:
+description:
+  The primary purpose for this library is to be able to merge multiple
+  @Stream@s together.  However, it is possible to build higher
+  abstractions on top of this to be able to also feed multiple
+  streams.
 license:             MIT
 license-file:        LICENSE
 author:              Ivan Lazar Miljenovic
