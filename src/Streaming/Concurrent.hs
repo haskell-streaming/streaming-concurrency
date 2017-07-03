@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses #-}
 
 {- |
    Module      : Streaming.Concurrent
@@ -36,15 +36,17 @@ module Streaming.Concurrent
   , mergeStreams
   ) where
 
-import           Streaming
+import           Streaming         (Of, Stream)
 import qualified Streaming.Prelude as S
 
-import Control.Concurrent.Async.Lifted (concurrently, forConcurrently_)
-import Control.Monad.Trans.Control (MonadBaseControl)
-import Control.Monad.Base (liftBase, MonadBase)
-import Control.Concurrent.STM
-import Control.Monad.Catch             (MonadMask, bracket, bracket_)
-import Control.Monad (when)
+import           Control.Applicative             ((<|>))
+import           Control.Concurrent.Async.Lifted (concurrently,
+                                                  forConcurrently_)
+import qualified Control.Concurrent.STM          as STM
+import           Control.Monad                   (when)
+import           Control.Monad.Base              (MonadBase, liftBase)
+import           Control.Monad.Catch             (MonadMask, bracket, bracket_)
+import           Control.Monad.Trans.Control     (MonadBaseControl)
 
 --------------------------------------------------------------------------------
 
@@ -69,14 +71,14 @@ writeStreamBasket stream (InBasket send) = go stream
                 case eNxt of
                   Left  _         -> return ()
                   Right (a, str') -> do
-                    continue <- liftBase (atomically (send a))
+                    continue <- liftBase (STM.atomically (send a))
                     when continue (go str')
 
 -- | Read the output of a buffer into a stream.
 readStreamBasket :: (MonadBase IO m) => OutBasket a -> Stream (Of a) m ()
 readStreamBasket (OutBasket receive) = S.untilRight getNext
   where
-    getNext = maybe (Right ()) Left <$> liftBase (atomically receive)
+    getNext = maybe (Right ()) Left <$> liftBase (STM.atomically receive)
 
 --------------------------------------------------------------------------------
 -- This entire section is almost completely taken from
@@ -131,12 +133,12 @@ newest n = Newest n
 -- | An exhaustible source of values.
 --
 --   'receiveMsg' returns 'Nothing' if the source is exhausted.
-newtype OutBasket a = OutBasket { receiveMsg :: STM (Maybe a) }
+newtype OutBasket a = OutBasket { receiveMsg :: STM.STM (Maybe a) }
 
 -- | An exhaustible sink of values.
 --
 --   'sendMsg' returns 'False' if the sink is exhausted.
-newtype InBasket a = InBasket { sendMsg :: a -> STM Bool }
+newtype InBasket a = InBasket { sendMsg :: a -> STM.STM Bool }
 
 -- | Use a buffer to asynchronously communicate.
 --
@@ -160,7 +162,7 @@ withBuffer :: (MonadMask m, MonadBaseControl IO m)
 withBuffer buffer sendIn readOut =
   bracket
     (liftBase openBasket)
-    (\(_, _, _, seal) -> liftBase (atomically seal)) $
+    (\(_, _, _, seal) -> liftBase (STM.atomically seal)) $
       \(writeB, readB, sealed, seal) ->
         snd <$> concurrently (withIn writeB sealed seal)
                              (withOut readB sealed seal)
@@ -168,50 +170,50 @@ withBuffer buffer sendIn readOut =
     openBasket = do
       (writeB, readB) <- case buffer of
         Bounded n -> do
-            q <- newTBQueueIO n
-            return (writeTBQueue q, readTBQueue q)
+            q <- STM.newTBQueueIO n
+            return (STM.writeTBQueue q, STM.readTBQueue q)
         Unbounded -> do
-            q <- newTQueueIO
-            return (writeTQueue q, readTQueue q)
+            q <- STM.newTQueueIO
+            return (STM.writeTQueue q, STM.readTQueue q)
         Single    -> do
-            m <- newEmptyTMVarIO
-            return (putTMVar m, takeTMVar m)
+            m <- STM.newEmptyTMVarIO
+            return (STM.putTMVar m, STM.takeTMVar m)
         Latest a  -> do
-            t <- newTVarIO a
-            return (writeTVar t, readTVar t)
+            t <- STM.newTVarIO a
+            return (STM.writeTVar t, STM.readTVar t)
         New       -> do
-            m <- newEmptyTMVarIO
-            return (\x -> tryTakeTMVar m *> putTMVar m x, takeTMVar m)
+            m <- STM.newEmptyTMVarIO
+            return (\x -> STM.tryTakeTMVar m *> STM.putTMVar m x, STM.takeTMVar m)
         Newest n  -> do
-            q <- newTBQueueIO n
-            let writeB x = writeTBQueue q x <|> (tryReadTBQueue q *> writeB x)
-            return (writeB, readTBQueue q)
+            q <- STM.newTBQueueIO n
+            let writeB x = STM.writeTBQueue q x <|> (STM.tryReadTBQueue q *> writeB x)
+            return (writeB, STM.readTBQueue q)
 
       -- We use this TVar as the communication mechanism between
       -- inputs and outputs as to whether either sub-continuation has
       -- finished.
-      sealed <- newTVarIO False
-      let seal = writeTVar sealed True
+      sealed <- STM.newTVarIO False
+      let seal = STM.writeTVar sealed True
 
       return (writeB, readB, sealed, seal)
 
     withIn writeB sealed seal =
       bracket_ (return ())
-               (liftBase (atomically seal))
+               (liftBase (STM.atomically seal))
                (sendIn (InBasket sendOrEnd))
       where
         sendOrEnd a = do
-          canWrite <- not <$> readTVar sealed
+          canWrite <- not <$> STM.readTVar sealed
           when canWrite (writeB a)
           return canWrite
 
     withOut readB sealed seal =
       bracket_ (return ())
-               (liftBase (atomically seal))
+               (liftBase (STM.atomically seal))
                (readOut (OutBasket readOrEnd))
       where
         readOrEnd = (Just <$> readB) <|> (do
-          b <- readTVar sealed
-          check b
+          b <- STM.readTVar sealed
+          STM.check b
           return Nothing )
 {-# INLINABLE withBuffer #-}
