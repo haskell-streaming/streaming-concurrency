@@ -43,8 +43,8 @@ import Control.Monad.Trans.Control (MonadBaseControl)
 -- | Concurrently merge multiple streams together.
 --
 --   The resulting order is unspecified.
-mergeStreams :: (Withable w, MonadBaseControl IO (WithMonad w), MonadBase IO m)
-                => Buffer a -> [Stream (Of a) (WithMonad w) v]
+mergeStreams :: (Withable w, MonadBaseControl IO (WithMonad w), MonadBase IO m, Foldable t)
+                => Buffer a -> t (Stream (Of a) (WithMonad w) v)
                 -> w (Stream (Of a) m ())
 mergeStreams buff strs = liftWith (SC.mergeStreams buff strs)
 
