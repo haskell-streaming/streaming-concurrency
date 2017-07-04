@@ -27,16 +27,23 @@ module Streaming.Concurrent.Lifted
   , writeStreamBasket
   , readStreamBasket
   , mergeStreams
+    -- * ByteString support
+  , writeByteStringBasket
+  , readByteStringBasket
+  , mergeByteStrings
   ) where
 
-import           Streaming             (Of, Stream)
-import           Streaming.Concurrent  (Buffer, InBasket(..), OutBasket(..),
-                                        bounded, latest, newest, unbounded)
-import qualified Streaming.Concurrent  as SC
-import           Streaming.With.Lifted (Withable(..))
+import           Data.ByteString.Streaming (ByteString)
+import           Streaming                 (Of, Stream)
+import           Streaming.Concurrent      (Buffer, InBasket(..), OutBasket(..),
+                                            bounded, latest, newest, unbounded)
+import qualified Streaming.Concurrent      as SC
+import           Streaming.With.Lifted     (Withable(..))
 
 import Control.Monad.Base          (MonadBase)
 import Control.Monad.Trans.Control (MonadBaseControl)
+
+import qualified Data.ByteString as B
 
 --------------------------------------------------------------------------------
 
@@ -48,6 +55,12 @@ mergeStreams :: (Withable w, MonadBaseControl IO (WithMonad w), MonadBase IO m, 
                 -> w (Stream (Of a) m ())
 mergeStreams buff strs = liftWith (SC.mergeStreams buff strs)
 
+-- | A streaming 'ByteString' variant of 'mergeStreams'.
+mergeByteStrings :: (Withable w, MonadBaseControl IO (WithMonad w), MonadBase IO n, Foldable t)
+                    => Buffer B.ByteString -> t (ByteString (WithMonad w) v)
+                    -> w (ByteString n ())
+mergeByteStrings buff bss = liftWith (SC.mergeByteStrings buff bss)
+
 -- | Write a single stream to a buffer.
 --
 --   Type written to make it easier if this is the only stream being
@@ -56,11 +69,21 @@ writeStreamBasket :: (Withable w, MonadBase IO (WithMonad w))
                      => Stream (Of a) (WithMonad w) r -> InBasket a -> w ()
 writeStreamBasket stream ib = liftAction (SC.writeStreamBasket stream ib)
 
+-- | A streaming 'ByteString' variant of 'writeStreamBasket'.
+writeByteStringBasket :: (Withable w, MonadBase IO (WithMonad w))
+                         => ByteString (WithMonad w) r -> InBasket B.ByteString -> w ()
+writeByteStringBasket bs ib = liftAction (SC.writeByteStringBasket bs ib)
+
 -- | Read the output of a buffer into a stream.
 --
 --   Note that there is no requirement that @m ~ WithMonad w@.
 readStreamBasket :: (Withable w, MonadBase IO m) => OutBasket a -> w (Stream (Of a) m ())
 readStreamBasket ob = liftWith (SC.readStreamBasket ob)
+
+-- | A streaming 'ByteString' variant of 'readStreamBasket'.
+readByteStringBasket :: (Withable w, MonadBase IO m)
+                        => OutBasket B.ByteString -> w (ByteString m ())
+readByteStringBasket ob = liftWith (SC.readByteStringBasket ob)
 
 -- | Use a buffer to asynchronously communicate.
 --

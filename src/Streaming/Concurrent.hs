@@ -34,10 +34,15 @@ module Streaming.Concurrent
   , writeStreamBasket
   , readStreamBasket
   , mergeStreams
+    -- * ByteString support
+  , writeByteStringBasket
+  , readByteStringBasket
+  , mergeByteStrings
   ) where
 
-import           Streaming         (Of, Stream)
-import qualified Streaming.Prelude as S
+import           Data.ByteString.Streaming (ByteString, reread, unconsChunk)
+import           Streaming                 (Of, Stream)
+import qualified Streaming.Prelude         as S
 
 import           Control.Applicative             ((<|>))
 import           Control.Concurrent.Async.Lifted (concurrently,
@@ -47,6 +52,8 @@ import           Control.Monad                   (when)
 import           Control.Monad.Base              (MonadBase, liftBase)
 import           Control.Monad.Catch             (MonadMask, bracket, bracket_)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
+import qualified Data.ByteString                 as B
+import           Data.Foldable                   (forM_)
 
 --------------------------------------------------------------------------------
 
@@ -63,6 +70,14 @@ mergeStreams buff strs f = withBuffer buff
                                       (forConcurrently_ strs . flip writeStreamBasket)
                                       (`readStreamBasket` f)
 
+-- | A streaming 'ByteString' variant of 'mergeStreams'.
+mergeByteStrings :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n, Foldable t)
+                    => Buffer B.ByteString -> t (ByteString m v)
+                    -> (ByteString n () -> m r) -> m r
+mergeByteStrings buff bss f = withBuffer buff
+                                         (forConcurrently_ bss . flip writeByteStringBasket)
+                                         (`readByteStringBasket` f)
+
 -- | Write a single stream to a buffer.
 --
 --   Type written to make it easier if this is the only stream being
@@ -71,11 +86,18 @@ writeStreamBasket :: (MonadBase IO m) => Stream (Of a) m r -> InBasket a -> m ()
 writeStreamBasket stream (InBasket send) = go stream
   where
     go str = do eNxt <- S.next str -- uncons requires r ~ ()
-                case eNxt of
-                  Left  _         -> return ()
-                  Right (a, str') -> do
-                    continue <- liftBase (STM.atomically (send a))
-                    when continue (go str')
+                forM_ eNxt $ \(a, str') -> do
+                  continue <- liftBase (STM.atomically (send a))
+                  when continue (go str')
+
+-- | A streaming 'ByteString' variant of 'writeStreamBasket'.
+writeByteStringBasket :: (MonadBase IO m) => ByteString m r -> InBasket B.ByteString -> m ()
+writeByteStringBasket bstring (InBasket send) = go bstring
+  where
+    go bs = do chNxt <- unconsChunk bs
+               forM_ chNxt $ \(chnk, bs') -> do
+                 continue <- liftBase (STM.atomically (send chnk))
+                 when continue (go bs')
 
 -- | Read the output of a buffer into a stream.
 readStreamBasket :: (MonadBase IO m) => OutBasket a
@@ -84,6 +106,13 @@ readStreamBasket :: (MonadBase IO m) => OutBasket a
 readStreamBasket (OutBasket receive) f = f (S.untilRight getNext)
   where
     getNext = maybe (Right ()) Left <$> liftBase (STM.atomically receive)
+
+-- | A streaming 'ByteString' variant of 'readStreamBasket'.
+readByteStringBasket :: (MonadBase IO m) => OutBasket B.ByteString
+                        -> (ByteString m () -> r)
+                        -> r
+readByteStringBasket (OutBasket receive) f =
+  f (reread (liftBase . STM.atomically) receive)
 
 --------------------------------------------------------------------------------
 -- This entire section is almost completely taken from
