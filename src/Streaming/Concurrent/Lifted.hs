@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 
 {- |
    Module      : Streaming.Concurrent.Lifted
@@ -21,16 +21,22 @@ module Streaming.Concurrent.Lifted
   , newest
     -- * Using a buffer
   , withBuffer
+  , withBufferedTransform
   , InBasket(..)
   , OutBasket(..)
     -- * Stream support
   , writeStreamBasket
   , withStreamBasket
   , withMergedStreams
+    -- ** Mapping
+  , withStreamMap
+  , withStreamMapM
+  , withStreamTransform
     -- * ByteString support
   , writeByteStringBasket
   , withByteStringBasket
   , withMergedByteStrings
+    -- $bytestringtransform
   ) where
 
 import           Data.ByteString.Streaming (ByteString)
@@ -92,6 +98,80 @@ withStreamBasket ob = liftWith (SC.withStreamBasket ob)
 withByteStringBasket :: (Withable w, MonadBase IO m)
                         => OutBasket B.ByteString -> w (ByteString m ())
 withByteStringBasket ob = liftWith (SC.withByteStringBasket ob)
+
+-- | Use buffers to concurrently transform the provided data.
+--
+--   In essence, this is a @demultiplexer -> multiplexer@
+--   transformation: the incoming data is split into @n@ individual
+--   segments, the results of which are then merged back together
+--   again.
+--
+--   Note: ordering of elements in the output is undeterministic.
+--
+--   @since 0.2.0.0
+withBufferedTransform :: (Withable w, MonadBaseControl IO (WithMonad w))
+                         => Int
+                            -- ^ How many concurrent computations to run.
+                         -> (OutBasket a -> InBasket b -> WithMonad w ab)
+                            -- ^ What to do with each individual concurrent
+                            --   computation; result is ignored.
+                         -> (InBasket a -> WithMonad w i)
+                            -- ^ Provide initial data; result is ignored.
+                         -> w (OutBasket b)
+withBufferedTransform n transform feed =
+  liftWith (SC.withBufferedTransform n transform feed)
+
+-- | Concurrently map a function over all elements of a 'Stream'.
+--
+--   Note: ordering of elements in the output is undeterministic.
+--
+--   @since 0.2.0.0
+withStreamMap :: (Withable w, MonadBaseControl IO (WithMonad w), MonadBase IO n)
+                 => Int -- ^ How many concurrent computations to run.
+                 -> (a -> b)
+                 -> Stream (Of a) (WithMonad w) i
+                 -> w (Stream (Of b) n ())
+withStreamMap n f inp = liftWith (SC.withStreamMap n f inp)
+
+-- | Concurrently map a monadic function over all elements of a
+--   'Stream'.
+--
+--   Note: ordering of elements in the output is undeterministic.
+--
+--   @since 0.2.0.0
+withStreamMapM :: (Withable w, MonadBaseControl IO (WithMonad w), MonadBase IO n)
+                  => Int -- ^ How many concurrent computations to run.
+                  -> (a -> WithMonad w b)
+                  -> Stream (Of a) (WithMonad w) i
+                  -> w (Stream (Of b) n ())
+withStreamMapM n f inp = liftWith (SC.withStreamMapM n f inp)
+
+-- | Concurrently split the provided stream into @n@ streams and
+--   transform them all using the provided function.
+--
+--   Note: ordering of elements in the output is undeterministic.
+--
+--   @since 0.2.0.0
+withStreamTransform :: ( Withable w, m ~ WithMonad w, MonadBaseControl IO m
+                       , MonadBase IO n)
+                       => Int -- ^ How many concurrent computations to run.
+                       -> (Stream (Of a) m () -> Stream (Of b) m t)
+                       -> Stream (Of a) m i
+                       -> w (Stream (Of b) n ())
+withStreamTransform n f inp = liftWith (SC.withStreamTransform n f inp)
+
+{- $bytestringtransform
+
+No 'ByteString' equivalents of 'withStreamMap', etc. are provided as
+it is very rare for individual chunks of a 'ByteString' - the sizes of
+which can vary - to be independent of their position within the
+overall stream.
+
+If you can make such guarantees (e.g. you know that each chunk is a
+distinct line and the ordering of these doesn't matter) then you can
+use 'withBufferedTransform' to write your own.
+
+-}
 
 -- | Use a buffer to asynchronously communicate.
 --

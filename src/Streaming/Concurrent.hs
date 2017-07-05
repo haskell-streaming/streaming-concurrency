@@ -28,16 +28,22 @@ module Streaming.Concurrent
   , newest
     -- * Using a buffer
   , withBuffer
+  , withBufferedTransform
   , InBasket(..)
   , OutBasket(..)
     -- * Stream support
   , writeStreamBasket
   , withStreamBasket
   , withMergedStreams
+    -- ** Mapping
+  , withStreamMap
+  , withStreamMapM
+  , withStreamTransform
     -- * ByteString support
   , writeByteStringBasket
   , withByteStringBasket
   , withMergedByteStrings
+    -- $bytestringtransform
   ) where
 
 import           Data.ByteString.Streaming (ByteString, reread, unconsChunk)
@@ -46,7 +52,8 @@ import qualified Streaming.Prelude         as S
 
 import           Control.Applicative             ((<|>))
 import           Control.Concurrent.Async.Lifted (concurrently,
-                                                  forConcurrently_)
+                                                  forConcurrently_,
+                                                  replicateConcurrently_)
 import qualified Control.Concurrent.STM          as STM
 import           Control.Monad                   (when)
 import           Control.Monad.Base              (MonadBase, liftBase)
@@ -121,6 +128,94 @@ withByteStringBasket :: (MonadBase IO m) => OutBasket B.ByteString
                         -> r
 withByteStringBasket (OutBasket receive) f =
   f (reread (liftBase . STM.atomically) receive)
+
+--------------------------------------------------------------------------------
+
+-- | Use buffers to concurrently transform the provided data.
+--
+--   In essence, this is a @demultiplexer -> multiplexer@
+--   transformation: the incoming data is split into @n@ individual
+--   segments, the results of which are then merged back together
+--   again.
+--
+--   Note: ordering of elements in the output is undeterministic.
+--
+--   @since 0.2.0.0
+withBufferedTransform :: (MonadMask m, MonadBaseControl IO m)
+                         => Int
+                            -- ^ How many concurrent computations to run.
+                         -> (OutBasket a -> InBasket b -> m ab)
+                            -- ^ What to do with each individual concurrent
+                            --   computation; result is ignored.
+                         -> (InBasket a -> m i)
+                            -- ^ Provide initial data; result is ignored.
+                         -> (OutBasket b -> m r) -> m r
+withBufferedTransform n transform feed consume =
+  withBuffer buff feed $ \obA ->
+    withBuffer buff (replicateConcurrently_ n . transform obA)
+      consume
+  where
+    buff :: Buffer v
+    buff = bounded n
+
+-- | Concurrently map a function over all elements of a 'Stream'.
+--
+--   Note: ordering of elements in the output is undeterministic.
+--
+--   @since 0.2.0.0
+withStreamMap :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n)
+                 => Int -- ^ How many concurrent computations to run.
+                 -> (a -> b)
+                 -> Stream (Of a) m i
+                 -> (Stream (Of b) n () -> m r) -> m r
+withStreamMap n = withStreamTransform n . S.map
+
+-- | Concurrently map a monadic function over all elements of a
+--   'Stream'.
+--
+--   Note: ordering of elements in the output is undeterministic.
+--
+--   @since 0.2.0.0
+withStreamMapM :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n)
+                  => Int -- ^ How many concurrent computations to run.
+                  -> (a -> m b)
+                  -> Stream (Of a) m i
+                  -> (Stream (Of b) n () -> m r) -> m r
+withStreamMapM n = withStreamTransform n . S.mapM
+
+-- | Concurrently split the provided stream into @n@ streams and
+--   transform them all using the provided function.
+--
+--   Note: ordering of elements in the output is undeterministic.
+--
+--   @since 0.2.0.0
+withStreamTransform :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n)
+                       => Int -- ^ How many concurrent computations to run.
+                       -> (Stream (Of a) m () -> Stream (Of b) m t)
+                       -> Stream (Of a) m i
+                       -> (Stream (Of b) n () -> m r) -> m r
+withStreamTransform n f inp cont =
+  withBufferedTransform n transform feed consume
+  where
+    feed = writeStreamBasket inp
+
+    transform obA ibB = withStreamBasket obA
+                          (flip writeStreamBasket ibB . f)
+
+    consume = flip withStreamBasket cont
+
+{- $bytestringtransform
+
+No 'ByteString' equivalents of 'withStreamMap', etc. are provided as
+it is very rare for individual chunks of a 'ByteString' - the sizes of
+which can vary - to be independent of their position within the
+overall stream.
+
+If you can make such guarantees (e.g. you know that each chunk is a
+distinct line and the ordering of these doesn't matter) then you can
+use 'withBufferedTransform' to write your own.
+
+-}
 
 --------------------------------------------------------------------------------
 -- This entire section is almost completely taken from
