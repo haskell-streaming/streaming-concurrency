@@ -34,16 +34,16 @@ main = hspec $ do
     prop "ByteString" mergeBSCheck
 
 mergeCheck :: (Ord a) => [[a]] -> Property
-mergeCheck ass = ioProperty (mergeStreams unbounded
-                                          (map each ass)
-                                          (eqOn sort as . toList_))
+mergeCheck ass = ioProperty (withMergedStreams unbounded
+                                               (map each ass)
+                                               (eqOn sort as . toList_))
   where
     as = concat ass
 
 mergeBSCheck :: [B.ByteString] -> Property
-mergeBSCheck bss = ioProperty (mergeByteStrings unbounded
-                                                (map fromStrict bss)
-                                                (eqOn B.sort bs . toStrict_))
+mergeBSCheck bss = ioProperty (withMergedByteStrings unbounded
+                                                     (map fromStrict bss)
+                                                     (eqOn B.sort bs . toStrict_))
   where
     bs = mconcat bss
 

@@ -32,12 +32,12 @@ module Streaming.Concurrent
   , OutBasket(..)
     -- * Stream support
   , writeStreamBasket
-  , readStreamBasket
-  , mergeStreams
+  , withStreamBasket
+  , withMergedStreams
     -- * ByteString support
   , writeByteStringBasket
-  , readByteStringBasket
-  , mergeByteStrings
+  , withByteStringBasket
+  , withMergedByteStrings
   ) where
 
 import           Data.ByteString.Streaming (ByteString, reread, unconsChunk)
@@ -63,20 +63,24 @@ import           Data.Foldable                   (forM_)
 --
 --   Note that the monad of the resultant Stream can be different from
 --   the final result.
-mergeStreams :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n, Foldable t)
-                => Buffer a -> t (Stream (Of a) m v)
-                -> (Stream (Of a) n () -> m r) -> m r
-mergeStreams buff strs f = withBuffer buff
-                                      (forConcurrently_ strs . flip writeStreamBasket)
-                                      (`readStreamBasket` f)
+--
+--   @since 0.2.0.0
+withMergedStreams :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n, Foldable t)
+                     => Buffer a -> t (Stream (Of a) m v)
+                     -> (Stream (Of a) n () -> m r) -> m r
+withMergedStreams buff strs f = withBuffer buff
+                                           (forConcurrently_ strs . flip writeStreamBasket)
+                                           (`withStreamBasket` f)
 
--- | A streaming 'ByteString' variant of 'mergeStreams'.
-mergeByteStrings :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n, Foldable t)
-                    => Buffer B.ByteString -> t (ByteString m v)
-                    -> (ByteString n () -> m r) -> m r
-mergeByteStrings buff bss f = withBuffer buff
-                                         (forConcurrently_ bss . flip writeByteStringBasket)
-                                         (`readByteStringBasket` f)
+-- | A streaming 'ByteString' variant of 'withMergedStreams'.
+--
+--   @since 0.2.0.0
+withMergedByteStrings :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n, Foldable t)
+                         => Buffer B.ByteString -> t (ByteString m v)
+                         -> (ByteString n () -> m r) -> m r
+withMergedByteStrings buff bss f = withBuffer buff
+                                              (forConcurrently_ bss . flip writeByteStringBasket)
+                                              (`withByteStringBasket` f)
 
 -- | Write a single stream to a buffer.
 --
@@ -100,18 +104,22 @@ writeByteStringBasket bstring (InBasket send) = go bstring
                  when continue (go bs')
 
 -- | Read the output of a buffer into a stream.
-readStreamBasket :: (MonadBase IO m) => OutBasket a
+--
+--   @since 0.2.0.0
+withStreamBasket :: (MonadBase IO m) => OutBasket a
                     -> (Stream (Of a) m () -> r)
                     -> r
-readStreamBasket (OutBasket receive) f = f (S.untilRight getNext)
+withStreamBasket (OutBasket receive) f = f (S.untilRight getNext)
   where
     getNext = maybe (Right ()) Left <$> liftBase (STM.atomically receive)
 
--- | A streaming 'ByteString' variant of 'readStreamBasket'.
-readByteStringBasket :: (MonadBase IO m) => OutBasket B.ByteString
+-- | A streaming 'ByteString' variant of 'withStreamBasket'.
+--
+--   @since 0.2.0.0
+withByteStringBasket :: (MonadBase IO m) => OutBasket B.ByteString
                         -> (ByteString m () -> r)
                         -> r
-readByteStringBasket (OutBasket receive) f =
+withByteStringBasket (OutBasket receive) f =
   f (reread (liftBase . STM.atomically) receive)
 
 --------------------------------------------------------------------------------
