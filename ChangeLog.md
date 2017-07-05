@@ -5,8 +5,7 @@
 * Removed support for streaming `ByteString`s.
 
     The ByteString-related functions which were previously implemented
-    are broken conceptually and should not be used; they will likely
-    be removed in a future release.
+    are broken conceptually and should not be used.
 
     A ByteString consists of a stream of bytes; the meaning of each byte
     is dependent upon its position in the overall stream.
