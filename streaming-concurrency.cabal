@@ -50,4 +50,4 @@ test-suite merging
                      , streaming-bytestring
   hs-source-dirs:      test
   default-language:    Haskell2010
-  ghc-options:         -Wall
+  ghc-options:         -Wall -threaded
