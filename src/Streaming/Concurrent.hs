@@ -43,6 +43,7 @@ module Streaming.Concurrent
   , writeByteStringBasket
   , withByteStringBasket
   , withMergedByteStrings
+    -- ** Mapping
     -- $bytestringtransform
   ) where
 
@@ -240,7 +241,7 @@ unbounded = Unbounded
 --   argument.
 --
 --   A buffer size @<= 0@ will result in a permanently empty buffer,
---   which could result in a system that hang.
+--   which could result in a system that hangs.
 bounded :: Int -> Buffer a
 bounded 1 = Single
 bounded n = Bounded n

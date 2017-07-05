@@ -36,6 +36,7 @@ module Streaming.Concurrent.Lifted
   , writeByteStringBasket
   , withByteStringBasket
   , withMergedByteStrings
+    -- ** Mapping
     -- $bytestringtransform
   ) where
 
