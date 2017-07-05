@@ -5,13 +5,27 @@ streaming-concurrency
 
 > Concurrency for the [streaming] ecosystem
 
-Two
-
-The primary purpose for this library is to be able to merge multiple
-`Stream`s together.  However, it is possible to build higher
-abstractions on top of this to be able to also feed multiple streams.
-
 [streaming]: http://hackage.haskell.org/package/streaming
+
+There are two primary higher-level use-cases for this library:
+
+1. Merge multiple `Stream`s together.
+
+2. A conceptual `Stream`-based equivalent to [`parMap`] (albeit
+   utilising concurrency rather than true parallelism).
+
+    [`parMap`]: http://hackage.haskell.org/package/parallel/docs/Control-Parallel-Strategies.html#v:parMap
+
+However, low-level functions are also exposed so you can construct
+your own methods of concurrently using `Stream`s (and there are also
+non-`Stream`-specific functions if you wish to use it with other data
+types).
+
+Conceptually, the approach taken is to consider a typical
+correspondence system with an in-basket/tray for receiving messages
+for others, and an out-basket/tray to be later dealt with.  Inputs are
+thus provided into the `InBasket` and removed once available from the
+`OutBasket`.
 
 Thanks and recognition
 ----------------------
@@ -23,3 +37,9 @@ providing a `spawn` primitive, thus not requiring explicit garbage
 collection.
 
 [pipes-concurrency]: http://hackage.haskell.org/package/pipes-concurrency
+
+Another main difference is that the naming of the `input` and `output`
+types has been switched around: [pipes-concurrency] seems to consider
+them from the point of view of the supplying/consuming `Pipe`s,
+whereas here they are considered from the point of view of the
+`Buffer` itself.
