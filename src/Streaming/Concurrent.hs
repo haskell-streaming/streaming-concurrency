@@ -133,7 +133,19 @@ withStreamMap :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n)
                  -> (a -> b)
                  -> Stream (Of a) m i
                  -> (Stream (Of b) n () -> m r) -> m r
-withStreamMap n = withStreamTransform n . S.map
+withStreamMap n f inp cont =
+  withBufferedTransform n transform feed consume
+  where
+    feed = writeStreamBasket inp
+
+    transform obA ibB = liftBase go
+      where
+        go = do ma <- STM.atomically (receiveMsg obA)
+                forM_ ma $ \a ->
+                  do s <- STM.atomically (sendMsg ibB (f a))
+                     when s go
+
+    consume = flip withStreamBasket cont
 
 -- | Concurrently map a monadic function over all elements of a
 --   'Stream'.
@@ -146,7 +158,20 @@ withStreamMapM :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n)
                   -> (a -> m b)
                   -> Stream (Of a) m i
                   -> (Stream (Of b) n () -> m r) -> m r
-withStreamMapM n = withStreamTransform n . S.mapM
+withStreamMapM n f inp cont =
+  withBufferedTransform n transform feed consume
+  where
+    feed = writeStreamBasket inp
+
+    transform obA ibB = go
+      where
+        go = do ma <- liftBase (STM.atomically (receiveMsg obA))
+                forM_ ma $ \a ->
+                  do b <- f a
+                     s <- liftBase (STM.atomically (sendMsg ibB b))
+                     when s go
+
+    consume = flip withStreamBasket cont
 
 -- | Concurrently split the provided stream into @n@ streams and
 --   transform them all using the provided function.

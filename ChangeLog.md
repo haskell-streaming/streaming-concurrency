@@ -4,6 +4,11 @@
 
 * Allow `streaming-0.2.*`
 
+* Improved performance for `withStreamMap` and `withStreamMapM`.
+
+    - Previously used additional `Stream`s within the concurrent
+      buffers which isn't actually needed.
+
 ## 0.3.0.1 -- 2017-07-07
 
 * Allow `streaming-with-0.2.*`
