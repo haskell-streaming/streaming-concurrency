@@ -5,6 +5,8 @@ streaming-concurrency
 
 > Concurrency for the [streaming] ecosystem
 
+Two
+
 The primary purpose for this library is to be able to merge multiple
 `Stream`s together.  However, it is possible to build higher
 abstractions on top of this to be able to also feed multiple streams.

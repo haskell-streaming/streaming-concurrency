@@ -1,6 +1,34 @@
 # Revision history for streaming-concurrency
 
-## 0.2.0.1  -- 2017-07-05
+## 0.3.0.0  -- 2017-07-05
+
+* Removed support for streaming `ByteString`s.
+
+    The ByteString-related functions which were previously implemented
+    are broken conceptually and should not be used; they will likely
+    be removed in a future release.
+
+    A ByteString consists of a stream of bytes; the meaning of each byte
+    is dependent upon its position in the overall stream.
+
+    In terms of implementation, these bytes are accumulated into
+    _chunks_, each of which may very well be of a different size.
+
+    As such, if such a chunk is fed into a buffer with multiple readers,
+    then there is no guarantee which reader will actually receive it or if
+    it makes sense about what it is in isolation (e.g. it could be split
+    mid-word, or possibly even in the middle of a Unicode character).
+
+    If, however, multiple ByteStrings are fed into a buffer with a single
+    reader, the order it has when coming out is similarly undeterministic:
+    it isn't possible to coherently ensure the sanity of the resulting
+    ByteString.
+
+    As such, unless you really want to consider it as a stream of
+    raw 8-bit numbers, trying to do any concurrency with a ByteString
+    will only lead to trouble.  If you do need such functionality, you
+    can implement it yourself using buffers containing `Word8` values
+    (in which case you can use `Data.ByteString.Streaming.unpack`).
 
 * Fix lower bound of `lifted-async` (`replicateConcurrently_` was
   added in 0.9.3).

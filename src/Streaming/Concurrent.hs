@@ -39,17 +39,10 @@ module Streaming.Concurrent
   , withStreamMap
   , withStreamMapM
   , withStreamTransform
-    -- * ByteString support
-  , writeByteStringBasket
-  , withByteStringBasket
-  , withMergedByteStrings
-    -- ** Mapping
-    -- $bytestringtransform
   ) where
 
-import           Data.ByteString.Streaming (ByteString, reread, unconsChunk)
-import           Streaming                 (Of, Stream)
-import qualified Streaming.Prelude         as S
+import           Streaming         (Of, Stream)
+import qualified Streaming.Prelude as S
 
 import           Control.Applicative             ((<|>))
 import           Control.Concurrent.Async.Lifted (concurrently,
@@ -60,7 +53,6 @@ import           Control.Monad                   (when)
 import           Control.Monad.Base              (MonadBase, liftBase)
 import           Control.Monad.Catch             (MonadMask, bracket, bracket_)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
-import qualified Data.ByteString                 as B
 import           Data.Foldable                   (forM_)
 
 --------------------------------------------------------------------------------
@@ -80,16 +72,6 @@ withMergedStreams buff strs f = withBuffer buff
                                            (forConcurrently_ strs . flip writeStreamBasket)
                                            (`withStreamBasket` f)
 
--- | A streaming 'ByteString' variant of 'withMergedStreams'.
---
---   @since 0.2.0.0
-withMergedByteStrings :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n, Foldable t)
-                         => Buffer B.ByteString -> t (ByteString m v)
-                         -> (ByteString n () -> m r) -> m r
-withMergedByteStrings buff bss f = withBuffer buff
-                                              (forConcurrently_ bss . flip writeByteStringBasket)
-                                              (`withByteStringBasket` f)
-
 -- | Write a single stream to a buffer.
 --
 --   Type written to make it easier if this is the only stream being
@@ -102,15 +84,6 @@ writeStreamBasket stream (InBasket send) = go stream
                   continue <- liftBase (STM.atomically (send a))
                   when continue (go str')
 
--- | A streaming 'ByteString' variant of 'writeStreamBasket'.
-writeByteStringBasket :: (MonadBase IO m) => ByteString m r -> InBasket B.ByteString -> m ()
-writeByteStringBasket bstring (InBasket send) = go bstring
-  where
-    go bs = do chNxt <- unconsChunk bs
-               forM_ chNxt $ \(chnk, bs') -> do
-                 continue <- liftBase (STM.atomically (send chnk))
-                 when continue (go bs')
-
 -- | Read the output of a buffer into a stream.
 --
 --   @since 0.2.0.0
@@ -120,15 +93,6 @@ withStreamBasket :: (MonadBase IO m) => OutBasket a
 withStreamBasket (OutBasket receive) f = f (S.untilRight getNext)
   where
     getNext = maybe (Right ()) Left <$> liftBase (STM.atomically receive)
-
--- | A streaming 'ByteString' variant of 'withStreamBasket'.
---
---   @since 0.2.0.0
-withByteStringBasket :: (MonadBase IO m) => OutBasket B.ByteString
-                        -> (ByteString m () -> r)
-                        -> r
-withByteStringBasket (OutBasket receive) f =
-  f (reread (liftBase . STM.atomically) receive)
 
 --------------------------------------------------------------------------------
 
@@ -204,19 +168,6 @@ withStreamTransform n f inp cont =
                           (flip writeStreamBasket ibB . f)
 
     consume = flip withStreamBasket cont
-
-{- $bytestringtransform
-
-No 'ByteString' equivalents of 'withStreamMap', etc. are provided as
-it is very rare for individual chunks of a 'ByteString' - the sizes of
-which can vary - to be independent of their position within the
-overall stream.
-
-If you can make such guarantees (e.g. you know that each chunk is a
-distinct line and the ordering of these doesn't matter) then you can
-use 'withBufferedTransform' to write your own.
-
--}
 
 --------------------------------------------------------------------------------
 -- This entire section is almost completely taken from

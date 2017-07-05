@@ -32,25 +32,16 @@ module Streaming.Concurrent.Lifted
   , withStreamMap
   , withStreamMapM
   , withStreamTransform
-    -- * ByteString support
-  , writeByteStringBasket
-  , withByteStringBasket
-  , withMergedByteStrings
-    -- ** Mapping
-    -- $bytestringtransform
   ) where
 
-import           Data.ByteString.Streaming (ByteString)
-import           Streaming                 (Of, Stream)
-import           Streaming.Concurrent      (Buffer, InBasket(..), OutBasket(..),
-                                            bounded, latest, newest, unbounded)
-import qualified Streaming.Concurrent      as SC
-import           Streaming.With.Lifted     (Withable(..))
+import           Streaming             (Of, Stream)
+import           Streaming.Concurrent  (Buffer, InBasket(..), OutBasket(..),
+                                        bounded, latest, newest, unbounded)
+import qualified Streaming.Concurrent  as SC
+import           Streaming.With.Lifted (Withable(..))
 
 import Control.Monad.Base          (MonadBase)
 import Control.Monad.Trans.Control (MonadBaseControl)
-
-import qualified Data.ByteString as B
 
 --------------------------------------------------------------------------------
 
@@ -64,14 +55,6 @@ withMergedStreams :: (Withable w, MonadBaseControl IO (WithMonad w), MonadBase I
                      -> w (Stream (Of a) m ())
 withMergedStreams buff strs = liftWith (SC.withMergedStreams buff strs)
 
--- | A streaming 'ByteString' variant of 'withMergedStreams'.
---
---   @since 0.2.0.0
-withMergedByteStrings :: (Withable w, MonadBaseControl IO (WithMonad w), MonadBase IO n, Foldable t)
-                         => Buffer B.ByteString -> t (ByteString (WithMonad w) v)
-                         -> w (ByteString n ())
-withMergedByteStrings buff bss = liftWith (SC.withMergedByteStrings buff bss)
-
 -- | Write a single stream to a buffer.
 --
 --   Type written to make it easier if this is the only stream being
@@ -80,11 +63,6 @@ writeStreamBasket :: (Withable w, MonadBase IO (WithMonad w))
                      => Stream (Of a) (WithMonad w) r -> InBasket a -> w ()
 writeStreamBasket stream ib = liftAction (SC.writeStreamBasket stream ib)
 
--- | A streaming 'ByteString' variant of 'writeStreamBasket'.
-writeByteStringBasket :: (Withable w, MonadBase IO (WithMonad w))
-                         => ByteString (WithMonad w) r -> InBasket B.ByteString -> w ()
-writeByteStringBasket bs ib = liftAction (SC.writeByteStringBasket bs ib)
-
 -- | Read the output of a buffer into a stream.
 --
 --   Note that there is no requirement that @m ~ WithMonad w@.
@@ -92,13 +70,6 @@ writeByteStringBasket bs ib = liftAction (SC.writeByteStringBasket bs ib)
 --   @since 0.2.0.0
 withStreamBasket :: (Withable w, MonadBase IO m) => OutBasket a -> w (Stream (Of a) m ())
 withStreamBasket ob = liftWith (SC.withStreamBasket ob)
-
--- | A streaming 'ByteString' variant of 'withStreamBasket'.
---
---   @since 0.2.0.0
-withByteStringBasket :: (Withable w, MonadBase IO m)
-                        => OutBasket B.ByteString -> w (ByteString m ())
-withByteStringBasket ob = liftWith (SC.withByteStringBasket ob)
 
 -- | Use buffers to concurrently transform the provided data.
 --
@@ -160,19 +131,6 @@ withStreamTransform :: ( Withable w, m ~ WithMonad w, MonadBaseControl IO m
                        -> Stream (Of a) m i
                        -> w (Stream (Of b) n ())
 withStreamTransform n f inp = liftWith (SC.withStreamTransform n f inp)
-
-{- $bytestringtransform
-
-No 'ByteString' equivalents of 'withStreamMap', etc. are provided as
-it is very rare for individual chunks of a 'ByteString' - the sizes of
-which can vary - to be independent of their position within the
-overall stream.
-
-If you can make such guarantees (e.g. you know that each chunk is a
-distinct line and the ordering of these doesn't matter) then you can
-use 'withBufferedTransform' to write your own.
-
--}
 
 -- | Use a buffer to asynchronously communicate.
 --
