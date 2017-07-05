@@ -1,5 +1,10 @@
 # Revision history for streaming-concurrency
 
+## 0.2.0.1  -- 2017-07-05
+
+* Fix lower bound of `lifted-async` (`replicateConcurrently_` was
+  added in 0.9.3).
+
 ## 0.2.0.0  -- 2017-07-05
 
 * Rename functions to match the `with...` naming scheme:
