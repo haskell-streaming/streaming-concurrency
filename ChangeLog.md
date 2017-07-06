@@ -1,6 +1,6 @@
 # Revision history for streaming-concurrency
 
-## 0.3.0.0  -- 2017-07-05
+## 0.3.0.0 -- 2017-07-05
 
 * Removed support for streaming `ByteString`s.
 
@@ -32,7 +32,7 @@
 * Fix lower bound of `lifted-async` (`replicateConcurrently_` was
   added in 0.9.3).
 
-## 0.2.0.0  -- 2017-07-05
+## 0.2.0.0 -- 2017-07-05
 
 * Rename functions to match the `with...` naming scheme:
 
@@ -51,6 +51,6 @@
     streaming `ByteString`; as such, functions for this are not
     implemented though it is possible to do yourself.)
 
-## 0.1.0.0  -- 2017-07-04
+## 0.1.0.0 -- 2017-07-04
 
 * First version.
