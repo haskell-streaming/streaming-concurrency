@@ -1,5 +1,5 @@
 name:                streaming-concurrency
-version:             0.3.0.0
+version:             0.3.0.1
 synopsis:            Concurrency support for the streaming ecosystem
 description:
   There are two primary higher-level use-cases for this library:
@@ -37,7 +37,7 @@ library
                      , monad-control == 1.*
                      , stm >= 2.4 && < 3
                      , streaming >= 0.1.4.0 && < 0.2
-                     , streaming-with == 0.1.*
+                     , streaming-with >= 0.1.0.0 && < 0.3
                      , transformers-base
   hs-source-dirs:      src
   default-language:    Haskell2010

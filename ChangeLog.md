@@ -1,5 +1,9 @@
 # Revision history for streaming-concurrency
 
+## 0.3.0.1 -- 2017-07-07
+
+* Allow `streaming-with-0.2.*`
+
 ## 0.3.0.0 -- 2017-07-05
 
 * Removed support for streaming `ByteString`s.
