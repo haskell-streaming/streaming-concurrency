@@ -54,3 +54,20 @@ test-suite merging
   hs-source-dirs:      test
   default-language:    Haskell2010
   ghc-options:         -Wall -threaded
+
+benchmark mapping
+  type:                exitcode-stdio-1.0
+  main-is:             mapping.hs
+  build-depends:       streaming-concurrency
+                     , base
+                     , exceptions
+                     , HUnit
+                     , lifted-async
+                     , monad-control
+                     , stm
+                     , streaming
+                     , testbench >= 0.2.1.0 && < 0.3
+                     , transformers-base
+  hs-source-dirs:      bench
+  default-language:    Haskell2010
+  ghc-options:         -Wall -threaded
