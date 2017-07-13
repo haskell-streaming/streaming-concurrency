@@ -51,7 +51,41 @@ import TestBench
 --------------------------------------------------------------------------------
 
 main :: IO ()
-main = putStrLn "not yet implemented"
+main = testBench $ do
+  collection "Pure maps" $ do
+    compareFuncAllIO "show"      (pureMap 10 show inputs S.toList_) normalFormIO
+    compareFuncAllIO "fibonacci" (pureMap 10 fib  inputs S.toList_) normalFormIO
+
+-- | We use the same value repeated to avoid having to sort the
+--   results, as that would give the non-concurrent variants an
+--   advantage.
+inputs :: Stream (Of Int) IO ()
+inputs = S.replicate 10000 25
+
+--------------------------------------------------------------------------------
+
+data PureMap = NonConcurrent
+             | BoundedImmediate
+             | BoundedStreamed
+             | UnboundedImmediate
+             | UnboundedStreamed
+  deriving (Eq, Ord, Show, Read, Bounded, Enum)
+
+pureMap :: Int -> (a -> b) -> Stream (Of a) IO () -> (Stream (Of b) IO () -> IO r)
+           -> PureMap -> IO r
+pureMap n f inp cont pm = go pm n f inp cont
+  where
+    go NonConcurrent      = withStreamMapN
+    go BoundedImmediate   = withStreamMapBI
+    go BoundedStreamed    = withStreamMapBS
+    go UnboundedImmediate = withStreamMapUI
+    go UnboundedStreamed  = withStreamMapUS
+
+-- Naive fibonacci implementation
+fib :: Int -> Int
+fib 0 = 1
+fib 1 = 1
+fib n = fib (n-1) + fib (n-2)
 
 --------------------------------------------------------------------------------
 -- Non-concurrent variants.  Take an unused Int just to match the types.
