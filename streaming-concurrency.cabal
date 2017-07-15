@@ -70,4 +70,4 @@ benchmark mapping
                      , transformers-base
   hs-source-dirs:      bench
   default-language:    Haskell2010
-  ghc-options:         -Wall -threaded
+  ghc-options:         -Wall -threaded +RTS -N -RTS
