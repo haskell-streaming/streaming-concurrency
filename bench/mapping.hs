@@ -54,13 +54,17 @@ main :: IO ()
 main = testBench $ do
   collection "Pure maps" $ do
     compareFuncAllIO "show"      (pureMap 10 show inputs S.toList_) normalFormIO
-    compareFuncAllIO "fibonacci" (pureMap 10 fib  inputs S.toList_) normalFormIO
+    mapM_ compFib [10]
+  where
+    compFib n = compareFuncAllIO ("fibonacci (" ++ show n ++ " tasks)")
+                                 (pureMap n fib  inputs S.toList_)
+                                 normalFormIO
 
 -- | We use the same value repeated to avoid having to sort the
 --   results, as that would give the non-concurrent variants an
 --   advantage.
 inputs :: Stream (Of Int) IO ()
-inputs = S.replicate 10000 25
+inputs = S.replicate 10000 30
 
 --------------------------------------------------------------------------------
 
