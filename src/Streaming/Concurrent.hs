@@ -51,7 +51,7 @@ import           Control.Concurrent.Async.Lifted (concurrently,
 import qualified Control.Concurrent.STM          as STM
 import           Control.Monad                   (when)
 import           Control.Monad.Base              (MonadBase, liftBase)
-import           Control.Monad.Catch             (MonadMask, bracket, bracket_)
+import           Control.Monad.Catch             (MonadMask, bracket, finally)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
 import           Data.Foldable                   (forM_)
 
@@ -287,9 +287,9 @@ withBuffer buffer sendIn readOut =
       return (writeB, readB, sealed, seal)
 
     withIn writeB sealed seal =
-      bracket_ (return ())
-               (liftBase (STM.atomically seal))
-               (sendIn (InBasket sendOrEnd))
+      sendIn (InBasket sendOrEnd)
+      `finally`
+      liftBase (STM.atomically seal)
       where
         sendOrEnd a = do
           canWrite <- not <$> STM.readTVar sealed
@@ -297,9 +297,9 @@ withBuffer buffer sendIn readOut =
           return canWrite
 
     withOut readB sealed seal =
-      bracket_ (return ())
-               (liftBase (STM.atomically seal))
-               (readOut (OutBasket readOrEnd))
+      readOut (OutBasket readOrEnd)
+      `finally`
+      liftBase (STM.atomically seal)
       where
         readOrEnd = (Just <$> readB) <|> (do
           b <- STM.readTVar sealed
