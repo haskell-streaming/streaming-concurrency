@@ -36,6 +36,7 @@ import Streaming.Concurrent (Buffer, InBasket(..), OutBasket(..), bounded,
                              unbounded, withBuffer, withStreamBasket,
                              writeStreamBasket)
 
+import           Control.Concurrent              (threadDelay)
 import           Control.Concurrent.Async.Lifted (replicateConcurrently_)
 import           Control.Concurrent.STM          (atomically)
 import           Control.Monad                   (forM_, when)
@@ -53,22 +54,33 @@ import TestBench
 main :: IO ()
 main = testBench $ do
   collection "Pure maps" $ do
-    compareFuncAllIO "show"      (pureMap 10 show inputs S.toList_) normalFormIO
-    mapM_ compFib [10]
+    compareFuncAllIO "show" (pureMap 10 show inputs S.toList_) normalFormIO
+    collection "Fibonacci" $
+      mapM_ compFib [1, 5, 10, 20]
+  collection "Monadic maps" $
+    collection "Identical sleep" $
+      mapM_ compDelaySame [1, 5, 10, 20]
   where
-    compFib n = compareFuncAllIO ("fibonacci (" ++ show n ++ " tasks)")
+    compFib n = compareFuncAllIO (show n ++ " tasks")
                                  (pureMap n fib  inputs S.toList_)
                                  normalFormIO
+
+    compDelaySame n = compareFuncAllIO (show n ++ " tasks")
+                                       (monadicMap n delayReturn inputs S.toList_)
+                                       normalFormIO
 
 -- | We use the same value repeated to avoid having to sort the
 --   results, as that would give the non-concurrent variants an
 --   advantage.
 inputs :: Stream (Of Int) IO ()
-inputs = S.replicate 10000 30
+inputs = S.replicate 10000 20
+
+delayReturn :: Int -> IO Int
+delayReturn n = threadDelay n >> return n
 
 --------------------------------------------------------------------------------
 
-data PureMap = NonConcurrent
+data MapType = NonConcurrent
              | BoundedImmediate
              | BoundedStreamed
              | UnboundedImmediate
@@ -76,7 +88,7 @@ data PureMap = NonConcurrent
   deriving (Eq, Ord, Show, Read, Bounded, Enum)
 
 pureMap :: Int -> (a -> b) -> Stream (Of a) IO () -> (Stream (Of b) IO () -> IO r)
-           -> PureMap -> IO r
+           -> MapType -> IO r
 pureMap n f inp cont pm = go pm n f inp cont
   where
     go NonConcurrent      = withStreamMapN
@@ -84,6 +96,16 @@ pureMap n f inp cont pm = go pm n f inp cont
     go BoundedStreamed    = withStreamMapBS
     go UnboundedImmediate = withStreamMapUI
     go UnboundedStreamed  = withStreamMapUS
+
+monadicMap :: Int -> (a -> IO b) -> Stream (Of a) IO () -> (Stream (Of b) IO () -> IO r)
+              -> MapType -> IO r
+monadicMap n f inp cont pm = go pm n f inp cont
+  where
+    go NonConcurrent      = withStreamMapMN
+    go BoundedImmediate   = withStreamMapMBI
+    go BoundedStreamed    = withStreamMapMBS
+    go UnboundedImmediate = withStreamMapMUI
+    go UnboundedStreamed  = withStreamMapMUS
 
 -- Naive fibonacci implementation
 fib :: Int -> Int
