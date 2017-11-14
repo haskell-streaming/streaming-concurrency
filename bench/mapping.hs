@@ -15,6 +15,13 @@
    variants, the type signatures of all functions have been
    specialised slightly.
 
+   Note that for the cases of @n = 1@, the concurrent variants have a
+   slight advantage in that - despite the overhead of concurrency -
+   three threads (one for writing, one for mapping and one for
+   reading) are used.  If @replicateConcurrently_ n@ is removed and
+   the benchmarks manually re-run, one of these threads are removed
+   and the overhead becomes more apparent.
+
    Suffixes used:
 
    [@B@] Uses bounded buffers (buffers are the same size as the number of
