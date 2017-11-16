@@ -63,27 +63,44 @@ main = testBench $ do
   collection "Pure maps" $ do
     compareFuncAllIO "show" (pureMap 10 show inputs S.toList_) normalFormIO
     collection "Fibonacci" $
-      mapM_ compFib [1, 5, 10, 20]
-  collection "Monadic maps" $
+      mapM_ compFib numThreads
+  collection "Monadic maps" $ do
+    collection "Fibonacci (return'ed)" $
+      mapM_ compFibM numThreads
     collection "Identical sleep" $
-      mapM_ compDelaySame [1, 5, 10, 20]
+      mapM_ compDelaySame numThreads
+    collection "Different sleep" $
+      mapM_ compDelayDiffer numThreads
   where
     compFib n = compareFuncAllIO (show n ++ " tasks")
-                                 (pureMap n fib  inputs S.toList_)
+                                 (pureMap n fib inputs S.toList_)
                                  normalFormIO
+
+    compFibM n = compareFuncAllIO (show n ++ " tasks")
+                                  (monadicMap n (return . fib) inputs S.toList_)
+                                  normalFormIO
 
     compDelaySame n = compareFuncAllIO (show n ++ " tasks")
                                        (monadicMap n delayReturn inputs S.toList_)
                                        normalFormIO
 
+    compDelayDiffer n = compareFuncAllIO (show n ++ " tasks")
+                                         (monadicMap n threadDelay mixedInputs S.length_)
+                                         normalFormIO
+
+    numThreads = [1, 5, 10]
+
 -- | We use the same value repeated to avoid having to sort the
 --   results, as that would give the non-concurrent variants an
 --   advantage.
 inputs :: Stream (Of Int) IO ()
-inputs = S.replicate 10000 20
+inputs = S.replicate 1000 20
 
 delayReturn :: Int -> IO Int
 delayReturn n = threadDelay n >> return n
+
+mixedInputs :: Stream (Of Int) IO ()
+mixedInputs = S.concat (S.replicate 123 [10..17])
 
 --------------------------------------------------------------------------------
 
