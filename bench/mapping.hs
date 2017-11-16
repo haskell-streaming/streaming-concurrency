@@ -157,16 +157,9 @@ withStreamMapBI :: (MonadMask m, MonadBaseControl IO m)
                    -> Stream (Of a) m ()
                    -> (Stream (Of b) m () -> m r) -> m r
 withStreamMapBI n f inp cont =
-  withBufferedTransformB n transform feed consume
+  withBufferedTransformB n (joinBuffers f) feed consume
   where
     feed = writeStreamBasket inp
-
-    transform obA ibB = liftBase go
-      where
-        go = do ma <- atomically (receiveMsg obA)
-                forM_ ma $ \a ->
-                  do s <- atomically (sendMsg ibB (f a))
-                     when s go
 
     consume = flip withStreamBasket cont
 
@@ -176,17 +169,9 @@ withStreamMapMBI :: (MonadMask m, MonadBaseControl IO m)
                     -> Stream (Of a) m ()
                     -> (Stream (Of b) m () -> m r) -> m r
 withStreamMapMBI n f inp cont =
-  withBufferedTransformB n transform feed consume
+  withBufferedTransformB n (joinBuffersM f) feed consume
   where
     feed = writeStreamBasket inp
-
-    transform obA ibB = go
-      where
-        go = do ma <- liftBase (atomically (receiveMsg obA))
-                forM_ ma $ \a ->
-                  do b <- f a
-                     s <- liftBase (atomically (sendMsg ibB b))
-                     when s go
 
     consume = flip withStreamBasket cont
 
@@ -210,12 +195,9 @@ withStreamTransformB :: (MonadMask m, MonadBaseControl IO m)
                         -> Stream (Of a) m ()
                         -> (Stream (Of b) m () -> m r) -> m r
 withStreamTransformB n f inp cont =
-  withBufferedTransformB n transform feed consume
+  withBufferedTransformB n (joinBuffersStream f) feed consume
   where
     feed = writeStreamBasket inp
-
-    transform obA ibB = withStreamBasket obA
-                          (flip writeStreamBasket ibB . f)
 
     consume = flip withStreamBasket cont
 
@@ -244,16 +226,9 @@ withStreamMapUI :: (MonadMask m, MonadBaseControl IO m)
                    -> Stream (Of a) m ()
                    -> (Stream (Of b) m () -> m r) -> m r
 withStreamMapUI n f inp cont =
-  withBufferedTransformU n transform feed consume
+  withBufferedTransformU n (joinBuffers f) feed consume
   where
     feed = writeStreamBasket inp
-
-    transform obA ibB = liftBase go
-      where
-        go = do ma <- atomically (receiveMsg obA)
-                forM_ ma $ \a ->
-                  do s <- atomically (sendMsg ibB (f a))
-                     when s go
 
     consume = flip withStreamBasket cont
 
@@ -263,17 +238,9 @@ withStreamMapMUI :: (MonadMask m, MonadBaseControl IO m)
                     -> Stream (Of a) m ()
                     -> (Stream (Of b) m () -> m r) -> m r
 withStreamMapMUI n f inp cont =
-  withBufferedTransformU n transform feed consume
+  withBufferedTransformU n (joinBuffersM f) feed consume
   where
     feed = writeStreamBasket inp
-
-    transform obA ibB = go
-      where
-        go = do ma <- liftBase (atomically (receiveMsg obA))
-                forM_ ma $ \a ->
-                  do b <- f a
-                     s <- liftBase (atomically (sendMsg ibB b))
-                     when s go
 
     consume = flip withStreamBasket cont
 
@@ -297,12 +264,9 @@ withStreamTransformU :: (MonadMask m, MonadBaseControl IO m)
                         -> Stream (Of a) m ()
                         -> (Stream (Of b) m () -> m r) -> m r
 withStreamTransformU n f inp cont =
-  withBufferedTransformU n transform feed consume
+  withBufferedTransformU n (joinBuffersStream f) feed consume
   where
     feed = writeStreamBasket inp
-
-    transform obA ibB = withStreamBasket obA
-                          (flip writeStreamBasket ibB . f)
 
     consume = flip withStreamBasket cont
 
@@ -324,6 +288,28 @@ withBufferedTransformU n transform feed consume =
     buff = unbounded
 
 --------------------------------------------------------------------------------
+
+joinBuffers :: (MonadBase IO m) => (a -> b) -> OutBasket a -> InBasket b -> m ()
+joinBuffers f obA ibB = liftBase go
+  where
+    go = do ma <- atomically (receiveMsg obA)
+            forM_ ma $ \a ->
+              do s <- atomically (sendMsg ibB (f a))
+                 when s go
+
+joinBuffersM :: (MonadBase IO m) => (a -> m b) -> OutBasket a -> InBasket b -> m ()
+joinBuffersM f obA ibB = go
+  where
+    go = do ma <- liftBase (atomically (receiveMsg obA))
+            forM_ ma $ \a ->
+              do b <- f a
+                 s <- liftBase (atomically (sendMsg ibB b))
+                 when s go
+
+joinBuffersStream :: (MonadBase IO m) => (Stream (Of a) m () -> Stream (Of b) m t)
+                     -> OutBasket a -> InBasket b -> m ()
+joinBuffersStream f obA ibB = withStreamBasket obA
+                                (flip writeStreamBasket ibB . f)
 
 streamBaseline :: (Eq v, Eq r) => String -> a -> CompParams a (Stream (Of v) IO r)
 streamBaseline = baselineWith (\s1 s2 -> equalItems s1 s2 @? "Streams have different values")
