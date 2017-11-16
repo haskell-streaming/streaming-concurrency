@@ -310,18 +310,3 @@ joinBuffersStream :: (MonadBase IO m) => (Stream (Of a) m () -> Stream (Of b) m 
                      -> OutBasket a -> InBasket b -> m ()
 joinBuffersStream f obA ibB = withStreamBasket obA
                                 (flip writeStreamBasket ibB . f)
-
-streamBaseline :: (Eq v, Eq r) => String -> a -> CompParams a (Stream (Of v) IO r)
-streamBaseline = baselineWith (\s1 s2 -> equalItems s1 s2 @? "Streams have different values")
-
-equalItems :: (Monad m, Eq a, Eq r)
-              => Stream (Of a) m r -> Stream (Of a) m r -> m Bool
-equalItems = go
-  where
-    go s1 s2 = do n1 <- S.next s1
-                  n2 <- S.next s2
-                  case (n1, n2) of
-                    (Left r1, Left r2) -> return (r1 == r2)
-                    (Right (a1,s1'), Right (a2,s2'))
-                      | a1 == a2       -> go s1' s2'
-                    _                  -> return False
