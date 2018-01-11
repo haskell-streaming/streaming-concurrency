@@ -36,7 +36,7 @@ library
                      , lifted-async >= 0.9.3 && < 0.10
                      , monad-control == 1.*
                      , stm >= 2.4 && < 3
-                     , streaming >= 0.1.4.0 && < 0.2
+                     , streaming >= 0.1.4.0 && < 0.3
                      , streaming-with >= 0.1.0.0 && < 0.3
                      , transformers-base
   hs-source-dirs:      src
