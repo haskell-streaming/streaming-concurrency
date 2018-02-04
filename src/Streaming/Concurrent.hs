@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 
 {- |
    Module      : Streaming.Concurrent
@@ -45,7 +45,9 @@ import           Streaming         (Of, Stream)
 import qualified Streaming.Prelude as S
 
 import           Control.Applicative             ((<|>))
-import           Control.Concurrent.Async.Lifted (concurrently,
+import           Control.Concurrent.Async.Lifted (withAsync,
+                                                  wait,
+                                                  cancel,
                                                   forConcurrently_,
                                                   replicateConcurrently_)
 import qualified Control.Concurrent.STM          as STM
@@ -253,9 +255,16 @@ withBuffer buffer sendIn readOut =
     (liftBase openBasket)
     (\(_, _, _, seal) -> liftBase (STM.atomically seal)) $
       \(writeB, readB, sealed, seal) ->
-        snd <$> concurrently (withIn writeB sealed seal)
-                             (withOut readB sealed seal)
+        waitOutCancelIn (withIn writeB sealed seal)
+                         (withOut readB sealed seal)
   where
+    waitOutCancelIn i o =
+      withAsync i $ \a ->
+      withAsync o $ \b -> do
+      b' <- wait b
+      cancel a
+      pure b'
+
     openBasket = do
       (writeB, readB) <- case buffer of
         Bounded n -> do
