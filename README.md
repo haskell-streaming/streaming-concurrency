@@ -1,7 +1,7 @@
 streaming-concurrency
 ==============
 
-[![Hackage](https://img.shields.io/hackage/v/streaming-concurrency.svg)](https://hackage.haskell.org/package/streaming-concurrency) [![Build Status](https://travis-ci.org/ivan-m/streaming-concurrency.svg)](https://travis-ci.org/ivan-m/streaming-concurrency)
+[![Hackage](https://img.shields.io/hackage/v/streaming-concurrency.svg)](https://hackage.haskell.org/package/streaming-concurrency) [![Build Status](https://travis-ci.org/haskell-streaming/streaming-concurrency.svg)](https://travis-ci.org/haskell-streaming/streaming-concurrency)
 
 > Concurrency for the [streaming] ecosystem
 
