@@ -85,7 +85,7 @@ main = testBench $ do
                                        normalFormIO
 
     compDelayDiffer n = compareFuncAllIO (show n ++ " tasks")
-                                         (monadicMap n threadDelay mixedInputs S.length_)
+                                         (monadicMap n ensureDelay mixedInputs S.length_)
                                          normalFormIO
 
     numThreads = [1, 5, 10]
@@ -97,7 +97,11 @@ inputs :: Stream (Of Int) IO ()
 inputs = S.replicate 1000 20
 
 delayReturn :: Int -> IO Int
-delayReturn n = threadDelay n >> return n
+delayReturn n = threadDelay n `seq` return n
+
+-- For when ordering can't be enforced.
+ensureDelay :: Int -> IO ()
+ensureDelay n = threadDelay n `seq` return ()
 
 mixedInputs :: Stream (Of Int) IO ()
 mixedInputs = S.concat (S.replicate 123 [10..17])
