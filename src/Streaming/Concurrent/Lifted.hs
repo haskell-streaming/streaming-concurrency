@@ -32,11 +32,17 @@ module Streaming.Concurrent.Lifted
   , withStreamMap
   , withStreamMapM
   , withStreamTransform
+    -- *** Primitives
+  , joinBuffers
+  , joinBuffersM
+  , joinBuffersStream
   ) where
 
 import           Streaming             (Of, Stream)
 import           Streaming.Concurrent  (Buffer, InBasket(..), OutBasket(..),
-                                        bounded, latest, newest, unbounded)
+                                        bounded, joinBuffers, joinBuffersM,
+                                        joinBuffersStream, latest, newest,
+                                        unbounded)
 import qualified Streaming.Concurrent  as SC
 import           Streaming.With.Lifted (Withable(..))
 

@@ -1,6 +1,6 @@
 # Revision history for streaming-concurrency
 
-## 0.3.0.2 -- 2018-01-
+## 0.3.1.0 -- 2018-03-
 
 * Allow `streaming-0.2.*`
 
@@ -8,6 +8,11 @@
 
     - Previously used additional `Stream`s within the concurrent
       buffers which isn't actually needed.
+
+    - A benchmark is available to compare various implementations.
+
+* Primitives to help defining custom stream-mapping functions are now
+  exported.
 
 ## 0.3.0.1 -- 2017-07-07
 

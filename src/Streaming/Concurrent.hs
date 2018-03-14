@@ -39,6 +39,10 @@ module Streaming.Concurrent
   , withStreamMap
   , withStreamMapM
   , withStreamTransform
+    -- *** Primitives
+  , joinBuffers
+  , joinBuffersM
+  , joinBuffersStream
   ) where
 
 import           Streaming         (Of, Stream)
@@ -138,12 +142,7 @@ withStreamMap n f inp cont =
   where
     feed = writeStreamBasket inp
 
-    transform obA ibB = liftBase go
-      where
-        go = do ma <- STM.atomically (receiveMsg obA)
-                forM_ ma $ \a ->
-                  do s <- STM.atomically (sendMsg ibB (f a))
-                     when s go
+    transform = joinBuffers f
 
     consume = flip withStreamBasket cont
 
@@ -163,13 +162,7 @@ withStreamMapM n f inp cont =
   where
     feed = writeStreamBasket inp
 
-    transform obA ibB = go
-      where
-        go = do ma <- liftBase (STM.atomically (receiveMsg obA))
-                forM_ ma $ \a ->
-                  do b <- f a
-                     s <- liftBase (STM.atomically (sendMsg ibB b))
-                     when s go
+    transform = joinBuffersM f
 
     consume = flip withStreamBasket cont
 
@@ -189,10 +182,41 @@ withStreamTransform n f inp cont =
   where
     feed = writeStreamBasket inp
 
-    transform obA ibB = withStreamBasket obA
-                          (flip writeStreamBasket ibB . f)
+    transform = joinBuffersStream f
 
     consume = flip withStreamBasket cont
+
+-- | Take an item out of one 'Buffer', apply a function to it and then
+--   place it into another 'Buffer.
+--
+--   @since 0.3.1.0
+joinBuffers :: (MonadBase IO m) => (a -> b) -> OutBasket a -> InBasket b -> m ()
+joinBuffers f obA ibB = liftBase go
+  where
+    go = do ma <- STM.atomically (receiveMsg obA)
+            forM_ ma $ \a ->
+              do s <- STM.atomically (sendMsg ibB (f a))
+                 when s go
+
+-- | As with 'joinBuffers' but apply a monadic function.
+--
+--   @since 0.3.1.0
+joinBuffersM :: (MonadBase IO m) => (a -> m b) -> OutBasket a -> InBasket b -> m ()
+joinBuffersM f obA ibB = go
+  where
+    go = do ma <- liftBase (STM.atomically (receiveMsg obA))
+            forM_ ma $ \a ->
+              do b <- f a
+                 s <- liftBase (STM.atomically (sendMsg ibB b))
+                 when s go
+
+-- | As with 'joinBuffers' but read and write the values as 'Stream's.
+--
+--   @since 0.3.1.0
+joinBuffersStream :: (MonadBase IO m) => (Stream (Of a) m () -> Stream (Of b) m t)
+                     -> OutBasket a -> InBasket b -> m ()
+joinBuffersStream f obA ibB = withStreamBasket obA
+                                (flip writeStreamBasket ibB . f)
 
 --------------------------------------------------------------------------------
 -- This entire section is almost completely taken from

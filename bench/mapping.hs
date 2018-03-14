@@ -43,14 +43,12 @@
 module Main (main) where
 
 import Streaming.Concurrent (Buffer, InBasket(..), OutBasket(..), bounded,
+                             joinBuffers, joinBuffersM, joinBuffersStream,
                              unbounded, withBuffer, withStreamBasket,
                              writeStreamBasket)
 
 import           Control.Concurrent              (threadDelay)
 import           Control.Concurrent.Async.Lifted (replicateConcurrently_)
-import           Control.Concurrent.STM          (atomically)
-import           Control.Monad                   (forM_, when)
-import           Control.Monad.Base              (MonadBase, liftBase)
 import           Control.Monad.Catch             (MonadMask)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
 import           Streaming
@@ -369,27 +367,3 @@ withBufferedTransformU n transform feed consume =
   where
     buff :: Buffer v
     buff = unbounded
-
---------------------------------------------------------------------------------
-
-joinBuffers :: (MonadBase IO m) => (a -> b) -> OutBasket a -> InBasket b -> m ()
-joinBuffers f obA ibB = liftBase go
-  where
-    go = do ma <- atomically (receiveMsg obA)
-            forM_ ma $ \a ->
-              do s <- atomically (sendMsg ibB (f a))
-                 when s go
-
-joinBuffersM :: (MonadBase IO m) => (a -> m b) -> OutBasket a -> InBasket b -> m ()
-joinBuffersM f obA ibB = go
-  where
-    go = do ma <- liftBase (atomically (receiveMsg obA))
-            forM_ ma $ \a ->
-              do b <- f a
-                 s <- liftBase (atomically (sendMsg ibB b))
-                 when s go
-
-joinBuffersStream :: (MonadBase IO m) => (Stream (Of a) m () -> Stream (Of b) m t)
-                     -> OutBasket a -> InBasket b -> m ()
-joinBuffersStream f obA ibB = withStreamBasket obA
-                                (flip writeStreamBasket ibB . f)
