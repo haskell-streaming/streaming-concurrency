@@ -1,5 +1,5 @@
 name:                streaming-concurrency
-version:             0.3.0.2
+version:             0.3.1.0
 synopsis:            Concurrency support for the streaming ecosystem
 description:
   There are two primary higher-level use-cases for this library:
