@@ -36,6 +36,7 @@ module Streaming.Concurrent
   , withStreamBasket
   , withMergedStreams
     -- ** Mapping
+    -- $mapping
   , withStreamMap
   , withStreamMapM
   , withStreamTransform
@@ -99,6 +100,28 @@ withStreamBasket (OutBasket receive) f = f (S.untilRight getNext)
     getNext = maybe (Right ()) Left <$> liftBase (STM.atomically receive)
 
 --------------------------------------------------------------------------------
+
+{- $mapping
+
+These functions provide (concurrency-based rather than
+parallelism-based) pseudo-equivalents to
+<http://hackage.haskell.org/package/parallel/docs/Control-Parallel-Strategies.html#v:parMap parMap>.
+
+Note however that in practice, these seem to be no better than - and
+indeed often worse - than using 'S.map' and 'S.mapM'.  A benchmarking
+suite is available with this library that tries to compare different
+scenarios.
+
+These implementations try to be relatively conservative in terms of
+memory usage; it is possible to get better performance by using an
+'unbounded' 'Buffer' but if you feed elements into a 'Buffer' much
+faster than you can consume them then memory usage will increase.
+
+The \"Primitives\" available below can assist you with defining your
+own custom mapping function in conjunction with
+'withBufferedTransform'.
+
+-}
 
 -- | Use buffers to concurrently transform the provided data.
 --
