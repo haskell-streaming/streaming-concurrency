@@ -27,6 +27,9 @@
    [@B@] Uses bounded buffers (buffers are the same size as the number of
          concurrent tasks).
 
+   [@D@] As with @B@ but uses buffers that are double the size of the
+         number of concurrent tasks.
+
    [@U@] Uses unbounded buffers.
 
    [@S@] Uses 'Stream's between the two buffers.
@@ -111,6 +114,8 @@ mixedInputs = S.concat (S.replicate 123 [10..17])
 data MapType = NonConcurrent
              | BoundedImmediate
              | BoundedStreamed
+             | DoubleImmediate
+             | DoubleStreamed
              | UnboundedImmediate
              | UnboundedStreamed
   deriving (Eq, Ord, Show, Read, Bounded, Enum)
@@ -122,6 +127,8 @@ pureMap n f inp cont pm = go pm n f inp cont
     go NonConcurrent      = withStreamMapN
     go BoundedImmediate   = withStreamMapBI
     go BoundedStreamed    = withStreamMapBS
+    go DoubleImmediate    = withStreamMapDI
+    go DoubleStreamed     = withStreamMapDS
     go UnboundedImmediate = withStreamMapUI
     go UnboundedStreamed  = withStreamMapUS
 
@@ -132,6 +139,8 @@ monadicMap n f inp cont pm = go pm n f inp cont
     go NonConcurrent      = withStreamMapMN
     go BoundedImmediate   = withStreamMapMBI
     go BoundedStreamed    = withStreamMapMBS
+    go DoubleImmediate    = withStreamMapMDI
+    go DoubleStreamed     = withStreamMapMDS
     go UnboundedImmediate = withStreamMapMUI
     go UnboundedStreamed  = withStreamMapMUS
 
@@ -221,6 +230,76 @@ withBufferedTransformB n transform feed consume =
   where
     buff :: Buffer v
     buff = bounded n
+
+--------------------------------------------------------------------------------
+-- Double-Bounded buffer variants
+
+withStreamMapDI :: (MonadMask m, MonadBaseControl IO m)
+                   => Int -- ^ How many concurrent computations to run.
+                   -> (a -> b)
+                   -> Stream (Of a) m ()
+                   -> (Stream (Of b) m () -> m r) -> m r
+withStreamMapDI n f inp cont =
+  withBufferedTransformD n (joinBuffers f) feed consume
+  where
+    feed = writeStreamBasket inp
+
+    consume = flip withStreamBasket cont
+
+withStreamMapMDI :: (MonadMask m, MonadBaseControl IO m)
+                    => Int -- ^ How many concurrent computations to run.
+                    -> (a -> m b)
+                    -> Stream (Of a) m ()
+                    -> (Stream (Of b) m () -> m r) -> m r
+withStreamMapMDI n f inp cont =
+  withBufferedTransformD n (joinBuffersM f) feed consume
+  where
+    feed = writeStreamBasket inp
+
+    consume = flip withStreamBasket cont
+
+withStreamMapDS :: (MonadMask m, MonadBaseControl IO m)
+                   => Int -- ^ How many concurrent computations to run.
+                   -> (a -> b)
+                   -> Stream (Of a) m ()
+                   -> (Stream (Of b) m () -> m r) -> m r
+withStreamMapDS n = withStreamTransformD n . S.map
+
+withStreamMapMDS :: (MonadMask m, MonadBaseControl IO m)
+                    => Int -- ^ How many concurrent computations to run.
+                    -> (a -> m b)
+                    -> Stream (Of a) m ()
+                    -> (Stream (Of b) m () -> m r) -> m r
+withStreamMapMDS n = withStreamTransformD n . S.mapM
+
+withStreamTransformD :: (MonadMask m, MonadBaseControl IO m)
+                        => Int -- ^ How many concurrent computations to run.
+                        -> (Stream (Of a) m () -> Stream (Of b) m t)
+                        -> Stream (Of a) m ()
+                        -> (Stream (Of b) m () -> m r) -> m r
+withStreamTransformD n f inp cont =
+  withBufferedTransformD n (joinBuffersStream f) feed consume
+  where
+    feed = writeStreamBasket inp
+
+    consume = flip withStreamBasket cont
+
+withBufferedTransformD :: (MonadMask m, MonadBaseControl IO m)
+                          => Int
+                             -- ^ How many concurrent computations to run.
+                          -> (OutBasket a -> InBasket b -> m ab)
+                             -- ^ What to do with each individual concurrent
+                             --   computation; result is ignored.
+                          -> (InBasket a -> m ())
+                             -- ^ Provide initial data; result is ignored.
+                          -> (OutBasket b -> m r) -> m r
+withBufferedTransformD n transform feed consume =
+  withBuffer buff feed $ \obA ->
+    withBuffer buff (replicateConcurrently_ n . transform obA)
+      consume
+  where
+    buff :: Buffer v
+    buff = bounded (2*n)
 
 --------------------------------------------------------------------------------
 
