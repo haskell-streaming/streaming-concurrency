@@ -47,7 +47,7 @@ import           Control.Concurrent              (threadDelay)
 import           Control.Concurrent.Async.Lifted (replicateConcurrently_)
 import           Control.Concurrent.STM          (atomically)
 import           Control.Monad                   (forM_, when)
-import           Control.Monad.Base              (liftBase)
+import           Control.Monad.Base              (MonadBase, liftBase)
 import           Control.Monad.Catch             (MonadMask)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
 import           Streaming
