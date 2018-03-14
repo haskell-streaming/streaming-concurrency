@@ -29,14 +29,21 @@ module Streaming.Concurrent.Lifted
   , withStreamBasket
   , withMergedStreams
     -- ** Mapping
+    -- $mapping
   , withStreamMap
   , withStreamMapM
   , withStreamTransform
+    -- *** Primitives
+  , joinBuffers
+  , joinBuffersM
+  , joinBuffersStream
   ) where
 
 import           Streaming             (Of, Stream)
 import           Streaming.Concurrent  (Buffer, InBasket(..), OutBasket(..),
-                                        bounded, latest, newest, unbounded)
+                                        bounded, joinBuffers, joinBuffersM,
+                                        joinBuffersStream, latest, newest,
+                                        unbounded)
 import qualified Streaming.Concurrent  as SC
 import           Streaming.With.Lifted (Withable(..))
 
@@ -92,6 +99,28 @@ withBufferedTransform :: (Withable w, MonadBaseControl IO (WithMonad w))
                          -> w (OutBasket b)
 withBufferedTransform n transform feed =
   liftWith (SC.withBufferedTransform n transform feed)
+
+{- $mapping
+
+These functions provide (concurrency-based rather than
+parallelism-based) pseudo-equivalents to
+<http://hackage.haskell.org/package/parallel/docs/Control-Parallel-Strategies.html#v:parMap parMap>.
+
+Note however that in practice, these seem to be no better than - and
+indeed often worse - than using 'S.map' and 'S.mapM'.  A benchmarking
+suite is available with this library that tries to compare different
+scenarios.
+
+These implementations try to be relatively conservative in terms of
+memory usage; it is possible to get better performance by using an
+'unbounded' 'Buffer' but if you feed elements into a 'Buffer' much
+faster than you can consume them then memory usage will increase.
+
+The \"Primitives\" available below can assist you with defining your
+own custom mapping function in conjunction with
+'withBufferedTransform'.
+
+-}
 
 -- | Concurrently map a function over all elements of a 'Stream'.
 --

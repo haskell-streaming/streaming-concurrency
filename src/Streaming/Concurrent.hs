@@ -36,9 +36,14 @@ module Streaming.Concurrent
   , withStreamBasket
   , withMergedStreams
     -- ** Mapping
+    -- $mapping
   , withStreamMap
   , withStreamMapM
   , withStreamTransform
+    -- *** Primitives
+  , joinBuffers
+  , joinBuffersM
+  , joinBuffersStream
   ) where
 
 import           Streaming         (Of, Stream)
@@ -96,6 +101,28 @@ withStreamBasket (OutBasket receive) f = f (S.untilRight getNext)
 
 --------------------------------------------------------------------------------
 
+{- $mapping
+
+These functions provide (concurrency-based rather than
+parallelism-based) pseudo-equivalents to
+<http://hackage.haskell.org/package/parallel/docs/Control-Parallel-Strategies.html#v:parMap parMap>.
+
+Note however that in practice, these seem to be no better than - and
+indeed often worse - than using 'S.map' and 'S.mapM'.  A benchmarking
+suite is available with this library that tries to compare different
+scenarios.
+
+These implementations try to be relatively conservative in terms of
+memory usage; it is possible to get better performance by using an
+'unbounded' 'Buffer' but if you feed elements into a 'Buffer' much
+faster than you can consume them then memory usage will increase.
+
+The \"Primitives\" available below can assist you with defining your
+own custom mapping function in conjunction with
+'withBufferedTransform'.
+
+-}
+
 -- | Use buffers to concurrently transform the provided data.
 --
 --   In essence, this is a @demultiplexer -> multiplexer@
@@ -133,7 +160,14 @@ withStreamMap :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n)
                  -> (a -> b)
                  -> Stream (Of a) m i
                  -> (Stream (Of b) n () -> m r) -> m r
-withStreamMap n = withStreamTransform n . S.map
+withStreamMap n f inp cont =
+  withBufferedTransform n transform feed consume
+  where
+    feed = writeStreamBasket inp
+
+    transform = joinBuffers f
+
+    consume = flip withStreamBasket cont
 
 -- | Concurrently map a monadic function over all elements of a
 --   'Stream'.
@@ -146,7 +180,14 @@ withStreamMapM :: (MonadMask m, MonadBaseControl IO m, MonadBase IO n)
                   -> (a -> m b)
                   -> Stream (Of a) m i
                   -> (Stream (Of b) n () -> m r) -> m r
-withStreamMapM n = withStreamTransform n . S.mapM
+withStreamMapM n f inp cont =
+  withBufferedTransform n transform feed consume
+  where
+    feed = writeStreamBasket inp
+
+    transform = joinBuffersM f
+
+    consume = flip withStreamBasket cont
 
 -- | Concurrently split the provided stream into @n@ streams and
 --   transform them all using the provided function.
@@ -164,10 +205,41 @@ withStreamTransform n f inp cont =
   where
     feed = writeStreamBasket inp
 
-    transform obA ibB = withStreamBasket obA
-                          (flip writeStreamBasket ibB . f)
+    transform = joinBuffersStream f
 
     consume = flip withStreamBasket cont
+
+-- | Take an item out of one 'Buffer', apply a function to it and then
+--   place it into another 'Buffer.
+--
+--   @since 0.3.1.0
+joinBuffers :: (MonadBase IO m) => (a -> b) -> OutBasket a -> InBasket b -> m ()
+joinBuffers f obA ibB = liftBase go
+  where
+    go = do ma <- STM.atomically (receiveMsg obA)
+            forM_ ma $ \a ->
+              do s <- STM.atomically (sendMsg ibB (f a))
+                 when s go
+
+-- | As with 'joinBuffers' but apply a monadic function.
+--
+--   @since 0.3.1.0
+joinBuffersM :: (MonadBase IO m) => (a -> m b) -> OutBasket a -> InBasket b -> m ()
+joinBuffersM f obA ibB = go
+  where
+    go = do ma <- liftBase (STM.atomically (receiveMsg obA))
+            forM_ ma $ \a ->
+              do b <- f a
+                 s <- liftBase (STM.atomically (sendMsg ibB b))
+                 when s go
+
+-- | As with 'joinBuffers' but read and write the values as 'Stream's.
+--
+--   @since 0.3.1.0
+joinBuffersStream :: (MonadBase IO m) => (Stream (Of a) m () -> Stream (Of b) m t)
+                     -> OutBasket a -> InBasket b -> m ()
+joinBuffersStream f obA ibB = withStreamBasket obA
+                                (flip writeStreamBasket ibB . f)
 
 --------------------------------------------------------------------------------
 -- This entire section is almost completely taken from
