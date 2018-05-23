@@ -1,5 +1,9 @@
 # Revision history for streaming-concurrency
 
+## 0.3.1.2 -- 2018-05-23
+
+* Bump lifted-async dependency.
+
 ## 0.3.1.1 -- 2018-03-23
 
 * Bump exceptions dependency.
