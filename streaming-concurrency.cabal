@@ -36,7 +36,7 @@ library
                      , exceptions >= 0.6 && < 0.11
                      , lifted-async >= 0.9.3 && < 0.111
                      , monad-control == 1.*
-                     , stm >= 2.4 && < 3
+                     , stm >= 2.4 && < 2.6
                      , streaming >= 0.1.4.0 && < 0.3
                      , streaming-with >= 0.1.0.0 && < 0.3
                      , transformers-base
@@ -48,7 +48,7 @@ test-suite merging
   main-is:             merging.hs
   build-depends:       streaming-concurrency
                      , base
-                     , hspec == 2.4.*
+                     , hspec >= 2.4 && < 2.7
                      , QuickCheck == 2.*
                      , quickcheck-instances
                      , streaming
