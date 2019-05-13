@@ -331,7 +331,7 @@ withBuffer buffer sendIn readOut =
     openBasket = do
       (writeB, readB) <- case buffer of
         Bounded n -> do
-            q <- STM.newTBQueueIO n
+            q <- STM.newTBQueueIO (fromIntegral n)
             return (STM.writeTBQueue q, STM.readTBQueue q)
         Unbounded -> do
             q <- STM.newTQueueIO
@@ -346,7 +346,7 @@ withBuffer buffer sendIn readOut =
             m <- STM.newEmptyTMVarIO
             return (\x -> STM.tryTakeTMVar m *> STM.putTMVar m x, STM.takeTMVar m)
         Newest n  -> do
-            q <- STM.newTBQueueIO n
+            q <- STM.newTBQueueIO (fromIntegral n)
             let writeB x = STM.writeTBQueue q x <|> (STM.tryReadTBQueue q *> writeB x)
             return (writeB, STM.readTBQueue q)
 
