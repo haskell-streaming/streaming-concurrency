@@ -1,5 +1,12 @@
 # Revision history for streaming-concurrency
 
+## 0.3.1.3 -- 2019-05-13
+
+* Bump/fix dependencies for:
+    - stm
+    - hspec
+    - lifted-async
+
 ## 0.3.1.2 -- 2018-05-23
 
 * Bump lifted-async dependency.
